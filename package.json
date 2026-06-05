@@ -1,0 +1,11 @@
+{
+  "name": "billi",
+  "version": "1.0.0",
+  "description": "Split bills with friends - PWA with OCR",
+  "scripts": {
+    "start": "live-server --port=3000"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}

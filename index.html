@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Billi - Split Bills with Friends</title>
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="img/icon-192.png">
+    <link rel="apple-touch-icon" href="img/icon-192.png">
+    <script src="js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body>
+    <div id="app" x-data="billiApp()" x-init="init()">
+        <div class="night-sky">
+            <div class="star star-large" style="top: 10%; left: 20%; animation-delay: 0s;"></div>
+            <div class="star star-medium" style="top: 30%; left: 70%; animation-delay: 1s;"></div>
+            <div class="star star-small" style="top: 50%; left: 40%; animation-delay: 2s;"></div>
+            <div class="star star-large" style="top: 70%; left: 80%; animation-delay: 0.5s;"></div>
+            <div class="star star-medium" style="top: 20%; left: 50%; animation-delay: 1.5s;"></div>
+            <div class="star star-small" style="top: 80%; left: 15%; animation-delay: 3s;"></div>
+            <div class="star star-large" style="top: 40%; left: 90%; animation-delay: 2.5s;"></div>
+            <div class="star star-medium" style="top: 60%; left: 30%; animation-delay: 0.8s;"></div>
+            <div class="star star-small" style="top: 15%; left: 60%; animation-delay: 1.2s;"></div>
+            <div class="star star-large" style="top: 90%; left: 45%; animation-delay: 3.5s;"></div>
+        </div>
+        <div class="pixel-border"></div>
+
+        <template x-if="screen === 'home'">
+            <div class="screen">
+                <div class="home-container">
+                    <h1 class="app-title">billi</h1>
+                    <p class="app-tagline">bill splits made purr-fect</p>
+                    <div class="jiji-container"><img src="img/jiji.png" alt="Jiji mascot" class="jiji-image"></div>
+                    <button class="new-bill-button" @click="screen = 'newBill'">+ split</button>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="screen === 'newBill'">
+            <div class="screen">
+                <div class="screen-header">
+                    <button class="back-button" @click="screen = 'home'"><span>&#9664;</span> Back</button>
+                    <h1 class="header-title">billi</h1>
+                    <button class="settings-button" @click="showFriendsModal = true">&#9881;</button>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <div style="text-align: center; margin-bottom: var(--space-lg);">
+                        <img src="img/happyjiji.png" alt="Happy Jiji" style="width: 120px; height: 120px; object-fit: contain;">
+                        <h2 class="pixel-text" style="color: var(--pixel-yellow); font-size: 1.5rem; margin-top: var(--space-sm);">scene deets</h2>
+                    </div>
+                    <div class="input-group">
+                        <label>Event Name</label>
+                        <input type="text" x-model="bill.eventName" placeholder="e.g., Dinner at Milano's">
+                    </div>
+                    <div class="input-group">
+                        <label>Date</label>
+                        <input type="date" x-model="bill.eventDate">
+                    </div>
+                    <div class="input-group">
+                        <label>Add Friends</label>
+                        <div class="search-container">
+                            <input type="text" placeholder="Type to search..." x-model="searchTerm" @input="filterFriends()">
+                            <span class="search-icon">&#128269;</span>
+                        </div>
+                    </div>
+                    <div class="friends-results" x-show="searchTerm.length > 0 && filteredFriends.length > 0">
+                        <template x-for="friend in filteredFriends" :key="friend.id">
+                            <div class="friend-item" @click="addFriend(friend)"><span x-text="friend.name"></span></div>
+                        </template>
+                    </div>
+                    <div class="selected-friends">
+                        <h3>Selected Friends</h3>
+                        <div class="friend-pills">
+                            <template x-for="friend in bill.participants" :key="friend.id">
+                                <div class="friend-pill">
+                                    <span x-text="friend.name"></span>
+                                    <button class="remove-friend" @click="removeFriend(friend)">&times;</button>
+                                </div>
+                            </template>
+                            <span x-show="bill.participants.length === 0" style="color: var(--light-gray); font-size: 0.875rem;">No friends selected</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: auto; padding-top: var(--space-lg);">
+                        <button class="pixel-button" :disabled="!isFormValid()" @click="screen = 'upload'">Let's Split! &#10024;</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="screen === 'upload'">
+            <div class="screen">
+                <div class="screen-header">
+                    <button class="back-button" @click="screen = 'newBill'"><span>&#9664;</span> Back</button>
+                    <h1 class="header-title">upload bill</h1>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="fortune-teller">
+                        <div class="jiji-sprite animate-jiji"></div>
+                        <p class="pixel-text">Show me the bill...</p>
+                    </div>
+                    <div x-show="!billImagePreview && !ocrProcessing" class="upload-area" @click="$refs.fileInput.click()">
+                        <div class="upload-icon">&#128247;</div>
+                        <p class="upload-text">Tap to upload or take a photo</p>
+                        <input type="file" accept="image/*" capture="environment" x-ref="fileInput" @change="handleImageUpload($event)" style="display: none;">
+                    </div>
+                    <div x-show="billImagePreview && !ocrProcessing" class="upload-area has-image">
+                        <img :src="billImagePreview" alt="Bill preview">
+                    </div>
+                    <div x-show="ocrProcessing" class="ocr-loading">
+                        <div class="jiji-sprite animate-jiji"></div>
+                        <p class="pixel-text">Jiji is reading the bill...</p>
+                        <div class="ocr-progress-bar"><div class="ocr-progress-fill" :style="`width: ${ocrProgress}%`"></div></div>
+                        <p x-text="ocrProgress + '%'"></p>
+                    </div>
+                    <div x-show="ocrRaw && !ocrProcessing" style="margin-top: var(--space-md);">
+                        <p class="pixel-text" style="font-size: 0.75rem; color: var(--light-gray); margin-bottom: var(--space-sm);">Found <span x-text="ocrItems.length"></span> items</p>
+                        <div style="max-height: 150px; overflow-y: auto; background: var(--dark-gray); padding: var(--space-sm); border-radius: var(--space-xs); margin-bottom: var(--space-md);">
+                            <template x-for="item in ocrItems" :key="item.id">
+                                <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--medium-gray); font-size: 0.875rem;">
+                                    <span x-text="item.name"></span>
+                                    <span style="color: var(--pixel-yellow);" x-text="'&#8377;' + item.price.toFixed(2)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="upload-buttons" style="margin-top: auto;">
+                        <button x-show="billImagePreview && !ocrProcessing" class="pixel-button" @click="processOCR()">Process with OCR &#10024;</button>
+                        <button x-show="ocrItems.length > 0 && !ocrProcessing" class="pixel-button success" @click="continueFromOCR()">Continue with Items</button>
+                        <button class="pixel-button secondary" @click="skipOCR()">Skip / Add Manually</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="screen === 'review'">
+            <div class="screen">
+                <div class="screen-header">
+                    <button class="back-button" @click="screen = 'upload'"><span>&#9664;</span> Back</button>
+                    <h1 class="header-title">review items</h1>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <p class="pixel-text" style="font-size: 0.75rem; color: var(--light-gray); margin-bottom: var(--space-md);">Edit items, add missing ones, or delete extras</p>
+                    <div class="items-list">
+                        <template x-for="item in reviewItems" :key="item.id">
+                            <div class="item-row">
+                                <input type="text" class="item-name-input" x-model="item.name" placeholder="Item name">
+                                <input type="number" class="item-price-input" x-model.number="item.price" placeholder="&#8377;" step="0.01" min="0">
+                                <button class="delete-item-btn" @click="deleteReviewItem(item.id)">&times;</button>
+                            </div>
+                        </template>
+                        <button class="pixel-button secondary small" @click="addReviewItem()" style="margin-top: var(--space-sm);">+ Add Item</button>
+                        <div class="item-total">Total: &#8377;<span x-text="getReviewTotal().toFixed(2)"></span></div>
+                    </div>
+                    <button class="pixel-button" @click="startAssignment()">Continue to Split &#10024;</button>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="screen === 'assign' && !isComplete">
+            <div class="screen">
+                <div class="header-progress">
+                    <button class="back-button" @click="screen = 'review'" style="position: static;"><span>&#9664;</span></button>
+                    <div class="progress-info">
+                        <p class="pixel-text">Item <span x-text="currentItemIndex + 1"></span>/<span x-text="reviewItems.length"></span></p>
+                        <div class="progress-bar"><div class="progress-fill" :style="`width: ${((currentItemIndex + (selectedFriends.length > 0 ? 1 : 0)) / reviewItems.length) * 100}%`"></div></div>
+                    </div>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="fortune-teller">
+                        <div class="jiji-sprite animate-jiji"></div>
+                        <p class="pixel-text">Jiji sees your expense...</p>
+                    </div>
+                    <div class="tarot-card-container">
+                        <div class="tarot-card" :class="{'flipped': cardFlipped}">
+                            <div class="tarot-card-front">
+                                <div class="card-content">
+                                    <p class="item-name" x-text="currentItem?.name || 'Item'"></p>
+                                    <p class="item-price" x-text="currentItem ? '&#8377;' + currentItem.price.toFixed(2) : '&#8377;0.00'"></p>
+                                    <p class="item-prompt">Who's paying for this?</p>
+                                </div>
+                            </div>
+                            <div class="tarot-card-back"></div>
+                        </div>
+                    </div>
+                    <div class="friend-selection">
+                        <h3 class="pixel-text">Select who pays</h3>
+                        <div class="friends-list">
+                            <template x-for="friend in bill.participants" :key="friend.id">
+                                <div class="friend-pill" :class="{ 'selected': selectedFriends.includes(friend.id) }" x-text="friend.name" @click="toggleFriend(friend.id)"></div>
+                            </template>
+                        </div>
+                        <button class="pixel-button secondary small" @click="splitEvenly()" style="margin: 0 auto;">Split Evenly</button>
+                    </div>
+                    <div class="button-container">
+                        <button x-show="currentItemIndex < reviewItems.length - 1" class="pixel-button" :class="{ 'disabled': selectedFriends.length === 0 }" :disabled="selectedFriends.length === 0" @click="nextItem()">Next Item</button>
+                        <button x-show="currentItemIndex === reviewItems.length - 1 && selectedFriends.length > 0" class="pixel-button success" @click="finishAssignment()">Continue</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="screen === 'assign' && isComplete">
+            <div class="screen">
+                <div class="completion-screen">
+                    <div class="jiji-jump-sprite animate-jiji-jump"></div>
+                    <p class="pixel-text" style="color: var(--light-gray);">All items assigned!</p>
+                    <h2 class="completion-title">Fortune Revealed!</h2>
+                    <p class="completion-message">Jiji has divided all items correctly.</p>
+                    <div class="sparkles">
+                        <div class="sparkle sparkle-1"></div>
+                        <div class="sparkle sparkle-2"></div>
+                        <div class="sparkle sparkle-3"></div>
+                    </div>
+                    <button class="pixel-button" @click="goToBreakdown()">View Breakdown</button>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="screen === 'breakdown'">
+            <div class="screen">
+                <div class="screen-header">
+                    <button class="back-button" @click="screen = 'assign'"><span>&#9664;</span> Back</button>
+                    <h1 class="header-title">breakdown</h1>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div style="flex: 1; overflow-y: auto;">
+                    <div class="breakdown-header">
+                        <h2 class="pixel-text" x-text="bill.eventName"></h2>
+                        <p class="total-amount">&#8377;<span x-text="getReviewTotal().toFixed(2)"></span></p>
+                    </div>
+                    <template x-for="person in breakdown" :key="person.id">
+                        <div class="person-card" x-show="person.total > 0">
+                            <h3 class="pixel-text" x-text="person.name"></h3>
+                            <p class="person-total">&#8377;<span x-text="Math.round(person.total)"></span></p>
+                            <div class="person-items">
+                                <template x-for="item in person.items" :key="item.name + item.amount">
+                                    <div class="person-item">
+                                        <span x-text="item.name"></span>
+                                        <span x-text="'&#8377;' + Math.round(item.amount)"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                    <div class="payer-section">
+                        <h3 class="pixel-text">Your Payment Details</h3>
+                        <div class="input-group">
+                            <label>UPI ID</label>
+                            <input type="text" x-model="payerUpi" @input="savePayerDetails()" placeholder="e.g., you@oksbi">
+                        </div>
+                        <div class="input-group">
+                            <label>Phone Number</label>
+                            <input type="tel" x-model="payerPhone" @input="savePayerDetails()" placeholder="e.g., 9876543210">
+                        </div>
+                    </div>
+                    <div class="share-section">
+                        <h3 class="pixel-text">Share Messages</h3>
+                        <template x-for="person in breakdown" :key="'msg-' + person.id">
+                            <div class="copy-message" x-show="person.total > 0">
+                                <span class="copied-indicator" :class="{ 'show': copiedStates[person.id] }">Copied!</span>
+                                <p x-text="getMessageForPerson(person)"></p>
+                                <button class="pixel-button small" @click="copyMessage(person.id)">Copy</button>
+                            </div>
+                        </template>
+                        <button class="pixel-button secondary" @click="copyAllMessages()" style="margin-top: var(--space-sm);">Copy All Messages</button>
+                    </div>
+                    <button class="pixel-button" @click="finishBill()" style="margin-top: var(--space-lg);">Finish &#10024;</button>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="showFriendsModal">
+            <div class="modal-overlay" @click.self="showFriendsModal = false">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h2>Manage Friends</h2>
+                        <button class="modal-close" @click="showFriendsModal = false">&times;</button>
+                    </div>
+                    <div class="friends-manage">
+                        <template x-for="friend in friends" :key="friend.id">
+                            <div class="manage-friend">
+                                <span x-text="friend.name"></span>
+                                <button @click="deleteFriend(friend.id)">&times;</button>
+                            </div>
+                        </template>
+                        <div class="add-friend-row">
+                            <input type="text" x-model="newFriendName" @keydown.enter="addNewFriend()" placeholder="Add new friend...">
+                            <button class="pixel-button small" @click="addNewFriend()">Add</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <div x-show="showToast" class="toast" x-text="toastMessage"></div>
+    </div>
+</body>
+</html>
